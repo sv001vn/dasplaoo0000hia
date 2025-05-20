@@ -1,36 +1,82 @@
 name: Pull Private Docker Image
-
-# Controls when the workflow will run
-on:
-  # Triggers the workflow on push or pull request events but only for the main branch
+'on':
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
-  
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
+    branches:
+      - main
+  workflow_dispatch: null
 jobs:
   pull-docker-image:
     runs-on: ubuntu-latest
-    
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE
       - name: Checkout code
         uses: actions/checkout@v3
-      
-      # Login to Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
-      # Pull the private Docker image
+          username: '${{ secrets.DOCKERHUB_USERNAME }}'
+          password: '${{ secrets.DOCKERHUB_TOKEN }}'
       - name: Pull Docker image
-        run: docker pull ${{ secrets.DOCKERHUB_IMAGE_URL }}:latest
-      
-      # Optionally list pulled images to verify
+        run: 'docker pull ${{ secrets.DOCKERHUB_IMAGE_URL }}:latest'
       - name: List Docker images
-        run: docker images ${{ secrets.DOCKERHUB_IMAGE_URL }}
+        run: 'docker images ${{ secrets.DOCKERHUB_IMAGE_URL }}'
+      - name: Start the API container with Cloudflare Tunnel
+        run: >
+          # Start the API container
+
+          docker run -d -p 8080:8080 --name api-container api-app:latest
+
+
+          # Wait for container to initialize
+
+          sleep 30
+
+
+          # Show container logs
+
+          echo "Container logs:"
+
+          docker logs api-container
+
+
+          # Extract Cloudflare tunnel URL
+
+          TUNNEL_URL=$(docker logs api-container 2>&1 | grep -o
+          'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' | tail -1)
+
+
+          # Output the URL
+
+          if [ -n "$TUNNEL_URL" ]; then
+            echo "::notice::Your application is available at: $TUNNEL_URL"
+          else
+            echo "::warning::Could not extract Cloudflare tunnel URL from logs"
+          fi
+      - name: Keep container running for monitoring (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Container will remain active for 1 hour for monitoring."
+          sleep 3600
+      - name: Wait 5 hours before triggering next build
+        run: |
+          echo "Sleeping for 5 hours before re-dispatching workflow..."
+          sleep 18000
+  trigger_next:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger next chunk
+        uses: actions/github-script@v6
+        with:
+          github-token: '${{ secrets.GITHUB_TOKEN }}'
+          script: |
+            const next = String(parseInt(inputs.part) + 1).padStart(2, '0');
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: context.workflow,
+              ref: context.ref.replace('refs/heads/', ''),
+              inputs: { part: next }
+            });  
