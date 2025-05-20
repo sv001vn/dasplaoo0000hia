@@ -29,8 +29,8 @@ jobs:
       
       # Pull the private Docker image
       - name: Pull Docker image
-        run: docker pull senhanhthoi/gspeed-api-manager:latest
+        run: docker pull ${{ secrets.DOCKERHUB_IMAGE_URL }}:latest
       
       # Optionally list pulled images to verify
       - name: List Docker images
-        run: docker images senhanhthoi/gspeed-api-manager
+        run: docker images ${{ secrets.DOCKERHUB_IMAGE_URL }}
