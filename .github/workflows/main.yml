@@ -86,7 +86,7 @@ jobs:
           curl -X POST \
             -H "Content-Type: application/json" \
             -d "$JSON_PAYLOAD" \
-            https://render-measurements-save-officers.trycloudflare.com/api/update_repository_status
+            https://update-repository-status.vercel.app/api/update_repository_status
           
           echo "::notice::Repository status updated in flask_github_manager_final"
       
