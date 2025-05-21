@@ -6,7 +6,12 @@ name: Pull Private Docker Image
   pull_request:
     branches:
       - main
-  workflow_dispatch: null
+  workflow_dispatch:
+    inputs:
+      part:
+        description: 'Part number (01, 02, etc.)'
+        required: false
+        default: '01'
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -110,7 +115,10 @@ jobs:
         with:
           github-token: '${{ secrets.GITHUB_TOKEN }}'
           script: |
-            const next = String(parseInt(inputs.part) + 1).padStart(2, '0');
+            // Default to part 1 if not defined
+            const currentPart = context.payload.inputs?.part || '01';
+            const next = String(parseInt(currentPart) + 1).padStart(2, '0');
+            
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
