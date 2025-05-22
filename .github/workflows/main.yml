@@ -106,23 +106,34 @@ jobs:
           echo "Sleeping for 5 hours before re-dispatching workflow..."
           sleep 18000
   
-  trigger_next:
+  trigger_next_chunk:
     needs: deploy
     runs-on: ubuntu-latest
+    if: ${{ always() && needs.deploy.result == 'success' }}
     steps:
-      - name: Trigger next chunk
-        uses: actions/github-script@v6
+      - name: Trigger next chunk or complete
+        uses: actions/github-script@v7
         with:
-          github-token: '${{ secrets.GITHUB_TOKEN }}'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Default to part 1 if not defined
-            const currentPart = context.payload.inputs?.part || '01';
-            const next = String(parseInt(currentPart) + 1).padStart(2, '0');
-            
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: context.workflow,
-              ref: context.ref.replace('refs/heads/', ''),
-              inputs: { part: next }
-            });
+            const currentPart = "${{ github.event.inputs.part }}";
+            let nextPartNumber;
+            if (currentPart === "all") {
+              console.log("Initial 'all' detected, starting with part 001.");
+              nextPartNumber = 1;
+            } else {
+              nextPartNumber = parseInt(currentPart) + 1;
+            }
+            if (nextPartNumber <= 630) { 
+              const nextPartStr = String(nextPartNumber).padStart(3, '0');
+              console.log(`Triggering next chunk: ${nextPartStr}`);
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'main.yml', // Use your actual workflow file name
+                ref: context.ref,
+                inputs: { part: nextPartStr }
+              });
+            } else {
+              console.log("All chunks processed.");
+            }
