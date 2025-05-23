@@ -15,6 +15,9 @@ name: Pull Private Docker Image
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    outputs:
+      tunnel_url: ${{ steps.tunnel.outputs.tunnel_url }}
+      deployment_success: ${{ steps.deployment.outputs.success }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -38,13 +41,20 @@ jobs:
           sudo mv cloudflared /usr/local/bin/
       
       - name: Start the API container
+        id: deployment
         run: |
           docker run -d -p 8080:8080 --name api-container ${{ secrets.DOCKERHUB_IMAGE_URL }}:latest
           # Wait for the API to start
           sleep 10
-          curl -s http://localhost:8080/
+          if curl -s http://localhost:8080/; then
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
       
       - name: Set up Cloudflare Tunnel
+        id: tunnel
         run: |
           # Create directory for logs
           mkdir -p /tmp/cloudflared
@@ -61,6 +71,7 @@ jobs:
           TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' /tmp/cloudflared/tunnel.log | tail -1)
           echo "::notice::Your application is available at: $TUNNEL_URL"
           echo "TUNNEL_URL=$TUNNEL_URL" >> $GITHUB_ENV
+          echo "tunnel_url=$TUNNEL_URL" >> $GITHUB_OUTPUT
           
           # Display logs for debugging
           echo "Cloudflare tunnel logs:"
@@ -103,8 +114,10 @@ jobs:
       
       - name: Wait 5 hours before triggering next build
         run: |
-          echo "Sleeping for 5 hours before re-dispatching workflow..."
+          echo "Deployment completed successfully. URL: ${{ env.TUNNEL_URL }}"
+          echo "Sleeping for 5 hours before triggering next build..."
           sleep 18000
+          echo "5-hour wait completed. Ready to trigger next build."
   
   trigger_next_chunk:
     needs: deploy
@@ -116,24 +129,37 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const currentPart = "${{ github.event.inputs.part }}";
+            const currentPart = "${{ github.event.inputs.part || '01' }}";
             let nextPartNumber;
+            
+            console.log(`Current part: ${currentPart}`);
+            
             if (currentPart === "all") {
               console.log("Initial 'all' detected, starting with part 001.");
               nextPartNumber = 1;
             } else {
               nextPartNumber = parseInt(currentPart) + 1;
             }
+            
+            console.log(`Next part number: ${nextPartNumber}`);
+            
             if (nextPartNumber <= 630) { 
               const nextPartStr = String(nextPartNumber).padStart(3, '0');
               console.log(`Triggering next chunk: ${nextPartStr}`);
-              await github.rest.actions.createWorkflowDispatch({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                workflow_id: 'main.yml', // Use your actual workflow file name
-                ref: context.ref,
-                inputs: { part: nextPartStr }
-              });
+              
+              try {
+                await github.rest.actions.createWorkflowDispatch({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: 'main.yml', // Make sure this matches your actual workflow file name
+                  ref: 'main', // or context.ref if you want to use the current branch
+                  inputs: { part: nextPartStr }
+                });
+                console.log(`Successfully triggered workflow for part ${nextPartStr}`);
+              } catch (error) {
+                console.error(`Failed to trigger workflow: ${error.message}`);
+                throw error;
+              }
             } else {
-              console.log("All chunks processed.");
+              console.log("All chunks processed. Workflow sequence completed.");
             }
