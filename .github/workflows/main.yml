@@ -57,7 +57,7 @@ jobs:
         run: |
           echo "Starting container..."
           docker run -d \
-            -p 5001:5001 \
+            -p 8080:8080 \
             --name api-container \
             --restart unless-stopped \
             ${{ secrets.DOCKERHUB_IMAGE_URL }}:latest
@@ -114,7 +114,7 @@ jobs:
         id: setup_tunnel
         run: |
           echo "Starting Cloudflare tunnel for main application..."
-          cloudflared tunnel --url http://localhost:5001 --logfile ~/cloudflared/tunnel.log --loglevel debug &
+          cloudflared tunnel --url http://localhost:8080 --logfile ~/cloudflared/tunnel.log --loglevel debug &
           TUNNEL_PID=$!
           echo "TUNNEL_PID=$TUNNEL_PID" >> $GITHUB_ENV
           
@@ -142,7 +142,7 @@ jobs:
         id: setup_logs_tunnel
         run: |
           echo "Starting Cloudflare tunnel for log server..."
-          cloudflared tunnel --url http://localhost:8080 --logfile ~/cloudflared/logs_tunnel.log --loglevel debug &
+          cloudflared tunnel --url http://localhost:8081 --logfile ~/cloudflared/logs_tunnel.log --loglevel debug &
           LOGS_TUNNEL_PID=$!
           echo "LOGS_TUNNEL_PID=$LOGS_TUNNEL_PID" >> $GITHUB_ENV
           
@@ -172,8 +172,8 @@ jobs:
           
           # Test local connections
           echo "Testing local connections:"
-          curl -s http://localhost:5001/ || echo "Local app test failed"
-          curl -s http://localhost:8080/status || echo "Local log server test failed"
+          curl -s http://localhost:8080/ || echo "Local app test failed"
+          curl -s http://localhost:8081/status || echo "Local log server test failed"
           
           # Test tunnel connections
           if [ -n "${{ env.TUNNEL_URL }}" ]; then
@@ -383,14 +383,14 @@ jobs:
                       self.end_headers()
                       self.wfile.write(b'404 - Not Found\n\nAvailable endpoints:\n/\n/logs\n/monitor\n/tunnel\n/status')
           
-          with socketserver.TCPServer(("", 8080), LogHandler) as httpd:
-              print(f"Log server running on port 8080")
+          with socketserver.TCPServer(("", 8081), LogHandler) as httpd:
+              print(f"Log server running on port 8081")
               httpd.serve_forever()
           EOF
           
           # Start log server in background
           python3 ~/log_server.py &
-          echo "Enhanced log server started on port 8080"
+          echo "Enhanced log server started on port 8081"
 
       - name: Display access information
         run: |
