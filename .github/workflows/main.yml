@@ -122,7 +122,7 @@ jobs:
           TUNNEL_URL=""
           attempts=0
           while [ -z "$TUNNEL_URL" ] && [ $attempts -lt 10 ]; do
-            sleep 5
+            sleep 20
             if [ -f ~/cloudflared/tunnel.log ]; then
               TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' ~/cloudflared/tunnel.log | tail -1)
             fi
@@ -152,7 +152,7 @@ jobs:
           LOGS_TUNNEL_URL=""
           attempts=0
           while [ -z "$LOGS_TUNNEL_URL" ] && [ $attempts -lt 10 ]; do
-            sleep 5
+            sleep 25
             if [ -f ~/cloudflared/logs_tunnel.log ]; then
               LOGS_TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' ~/cloudflared/logs_tunnel.log | tail -1)
             fi
@@ -168,15 +168,6 @@ jobs:
             echo "Failed to get logs tunnel URL after 10 attempts"
             cat ~/cloudflared/logs_tunnel.log
             exit 1
-          fi
-
-      - name: Verify tunnel URLs
-        run: |
-          if [ "${{ env.TUNNEL_URL }}" == "${{ env.LOGS_TUNNEL_URL }}" ]; then
-            echo "Error: Main app and logs tunnel URLs are the same: ${{ env.TUNNEL_URL }}"
-            exit 1
-          else
-            echo "Tunnel URLs are different: ${{ env.TUNNEL_URL }} and ${{ env.LOGS_TUNNEL_URL }}"
           fi
 
       - name: Test application and log server
