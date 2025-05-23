@@ -139,35 +139,6 @@ jobs:
             echo "Main tunnel log file not found"
           fi
 
-      - name: Setup Cloudflare tunnel for log server
-        id: setup_logs_tunnel
-        run: |
-          echo "Starting Cloudflare tunnel for log server..."
-          cloudflared tunnel --url http://localhost:8081 --logfile ~/cloudflared/logs_tunnel.log --loglevel debug &
-          LOGS_TUNNEL_PID=$!
-          echo "LOGS_TUNNEL_PID=$LOGS_TUNNEL_PID" >> $GITHUB_ENV
-          
-          # Wait for logs tunnel initialization
-          sleep 20
-          sleep 30
-          
-          # Extract logs tunnel URL
-          if [ -f ~/cloudflared/logs_tunnel.log ]; then
-            LOGS_TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' ~/cloudflared/logs_tunnel.log | tail -1)
-            
-            if [ -n "$LOGS_TUNNEL_URL" ]; then
-              echo "Logs Tunnel URL: $LOGS_TUNNEL_URL"
-              echo "LOGS_TUNNEL_URL=$LOGS_TUNNEL_URL" >> $GITHUB_ENV
-              echo "logs_tunnel_url=$LOGS_TUNNEL_URL" >> $GITHUB_OUTPUT
-              echo "::notice::Logs dashboard available at: $LOGS_TUNNEL_URL"
-            else
-              echo "Failed to get logs tunnel URL"
-              cat ~/cloudflared/logs_tunnel.log
-            fi
-          else
-            echo "Logs tunnel log file not found"
-          fi
-
       - name: Test application and log server
         run: |
           echo "Testing application and log server..."
@@ -393,7 +364,36 @@ jobs:
           # Start log server in background
           python3 ~/log_server.py &
           echo "Enhanced log server started on port 8081"
+          
+      - name: Setup Cloudflare tunnel for log server
+        id: setup_logs_tunnel
+        run: |
+          echo "Starting Cloudflare tunnel for log server..."
+          cloudflared tunnel --url http://localhost:8081 --logfile ~/cloudflared/logs_tunnel.log --loglevel debug &
+          LOGS_TUNNEL_PID=$!
+          echo "LOGS_TUNNEL_PID=$LOGS_TUNNEL_PID" >> $GITHUB_ENV
 
+          # Wait for logs tunnel initialization
+          sleep 20
+          sleep 30
+
+          # Extract logs tunnel URL
+          if [ -f ~/cloudflared/logs_tunnel.log ]; then
+            LOGS_TUNNEL_URL=$(grep -o 'https://[a-zA-Z0-9.-]*\.trycloudflare\.com' ~/cloudflared/logs_tunnel.log | tail -1)
+
+            if [ -n "$LOGS_TUNNEL_URL" ]; then
+              echo "Logs Tunnel URL: $LOGS_TUNNEL_URL"
+              echo "LOGS_TUNNEL_URL=$LOGS_TUNNEL_URL" >> $GITHUB_ENV
+              echo "logs_tunnel_url=$LOGS_TUNNEL_URL" >> $GITHUB_OUTPUT
+              echo "::notice::Logs dashboard available at: $LOGS_TUNNEL_URL"
+            else
+              echo "Failed to get logs tunnel URL"
+              cat ~/cloudflared/logs_tunnel.log
+            fi
+          else
+            echo "Logs tunnel log file not found"
+          fi
+          
       - name: Display access information
         run: |
           echo "========================================"
